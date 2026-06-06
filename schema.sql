@@ -47,7 +47,6 @@ CREATE TABLE item_event (
     event_id            SERIAL PRIMARY KEY,
     match_id            TEXT REFERENCES match(match_id),
     game_time           INTEGER,
-    slot                TEXT,
     item_name           TEXT,
     event_type          TEXT
 );

@@ -34,7 +34,9 @@ def ingest_file(filepath):
     print(f"Snapshots leidos: {len(snapshots)}")
     
     known_abilities = {}
-    first_snapshot = True
+    first_ability_snapshot = True
+    known_items = {}
+    first_item_snapshot = True
 
     # Datos del primer snapshot
     first = snapshots[0]
@@ -128,32 +130,84 @@ def ingest_file(filepath):
             current_abilities[ability_name] = ability_level
         
         # Primer snapshot = estado inicial
-        if first_snapshot:
+        if first_ability_snapshot:
 
             for ability_name, current_level in current_abilities.items():
                 known_abilities[ability_name] = current_level
 
-            first_snapshot = False
-            continue
+            first_ability_snapshot = False
+        else:
 
         # Comparar contra máximos conocidos
-        for ability_name, current_level in current_abilities.items():
+            for ability_name, current_level in current_abilities.items():
 
-            known_level = known_abilities.get(
-                ability_name,
-                0
+                known_level = known_abilities.get(
+                 ability_name,
+                 0
+                )
+
+                if current_level > known_level:
+
+                    cur.execute("""
+                    INSERT INTO ability_event(match_id, game_time, ability_name, level_new)
+                    VALUES(%s, %s, %s, %s)
+                    ON CONFLICT(match_id, game_time, ability_name)
+                    DO NOTHING
+                    """,(match_id, game_time, ability_name, current_level))
+
+                    known_abilities[ability_name] = current_level
+
+        #ITEMS EVENT
+        items = snap.get("items",{})
+        current_items = {}
+
+        for slot, item_data in items.items():
+            if slot.startswith("stash"):
+                continue
+            if slot.startswith("preserved_neutral"):
+                continue
+            if slot == "teleport0":
+                continue
+            item_name = item_data.get("name")
+            if not item_name:
+                continue
+            if item_name == "empty":
+                continue
+            current_items[item_name] = (
+                current_items.get(item_name, 0) + 1
             )
 
-            if current_level > known_level:
+        #Primer snapshot, estado inicial
+        if first_item_snapshot:
+            known_items = current_items.copy()
+            first_item_snapshot = False
+        else:
+            all_items = set(known_items.keys()) | set(current_items.keys())
 
-                cur.execute("""
-                INSERT INTO ability_event(match_id, game_time, ability_name, level_new)
-                VALUES(%s, %s, %s, %s)
-                ON CONFLICT(match_id, game_time, ability_name)
-                DO NOTHING
-                """,(match_id, game_time, ability_name, current_level))
+            for item_name in all_items:
+                old_count = known_items.get(item_name, 0)
+                new_count = current_items.get(item_name, 0)
+                
+                if new_count > old_count:
+                    quantity = new_count - old_count
+                    cur.execute("""
+                                INSERT INTO item_event(match_id, game_time, item_name, event_type, quantity)
+                                VALUES(%s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
+                                """, (match_id, game_time, item_name, "acquired", quantity))
+                    
+                elif old_count > new_count:
+                    quantity = old_count - new_count
+                    cur.execute("""
+                                INSERT INTO item_event(match_id, game_time, item_name, event_type, quantity)
+                                VALUES(%s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
+                                """, (match_id, game_time, item_name, "removed", quantity))
 
-                known_abilities[ability_name] = current_level
+            known_items = current_items.copy()
+
+
+
 
     conn.commit()
     print(f"Ingest completada: {match_id}")

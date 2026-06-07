@@ -7,7 +7,7 @@ app = FastAPI()
 current_game_state = None
 current_file = None
 current_match_id = None
-POST_GAME_BUFFER = 10
+POST_GAME_BUFFER = 1
 post_game_counter = 0
 post_game_detected = False
 

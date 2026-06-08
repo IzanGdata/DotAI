@@ -50,7 +50,7 @@ async def receive_gsi(data:dict):
          current_file.write(json.dumps(data) + "\n")
          current_file.flush()
     
-    if game_state == "DOTA_GAMERULES_STATE_POST_GAME":
+    if game_state == "DOTA_GAMERULES_STATE_POST_GAME" and current_file is not None:
             if not post_game_detected:
                 post_game_detected = True
                 post_game_counter = 0
@@ -61,7 +61,8 @@ async def receive_gsi(data:dict):
             if post_game_counter >= POST_GAME_BUFFER:
                 print(f"🔴 Partida finalizada: {current_match_id}")
                 print("Archivo cerrado correctamente")
-                current_file.close()
+                if current_file:
+                    current_file.close()
                 current_file = None
                 current_match_id = None
                 post_game_detected = False
